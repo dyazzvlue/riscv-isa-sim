@@ -43,7 +43,7 @@ static void handle_signal(int sig)
 htif_t::htif_t()
   : mem(this), entry(DRAM_BASE), sig_addr(0), sig_len(0),
     tohost_addr(0), fromhost_addr(0), exitcode(0), stopped(false),
-    syscall_proxy(this)
+    syscall_proxy(this), mtx(PTHREAD_MUTEX_INITIALIZER)
 {
   signal(SIGINT, &handle_signal);
   signal(SIGTERM, &handle_signal);
@@ -201,10 +201,23 @@ void htif_t::clear_chunk(addr_t taddr, size_t len)
   for (size_t pos = 0; pos < len; pos += chunk_max_size())
     write_chunk(taddr + pos, std::min(len - pos, chunk_max_size()), zeros);
 }
+/*
+void htif_t::cosim_run(){
+    pthread_create(&thread, NULL, htif_t::run_thread, this);
+    pthread_detach(thread);
+}
 
+void* htif_t::run_thread(void *arg){
+    htif_t *thiz = static_cast<htif_t *> (arg);
+    thiz->run();
+}
+*/
 int htif_t::run()
 {
+  pthread_mutex_lock(&this->mtx);
+  std::cout << "----- htif_t run() begin" << std::endl;
   start();
+  std::cout << "----- htif_t run start()" << std::endl;
 
   auto enq_func = [](std::queue<reg_t>* q, uint64_t x) { q->push(x); };
   std::queue<reg_t> fromhost_queue;
@@ -215,7 +228,7 @@ int htif_t::run()
     while (true)
       idle();
   }
-
+  
   while (!signal_exit && exitcode == 0)
   {
     if (auto tohost = from_target(mem.read_uint64(tohost_addr))) {
@@ -235,6 +248,7 @@ int htif_t::run()
   }
 
   stop();
+  pthread_mutex_unlock(&this->mtx);
 
   return exit_code();
 }

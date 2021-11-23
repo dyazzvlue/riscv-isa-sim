@@ -113,6 +113,9 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   if (cpu_offset < 0)
     return;
 
+  //systemc controller
+  sc_controller = new sysc_controller_t("sysc_testing");
+
   for (cpu_offset = fdt_get_first_subnode(fdt, cpu_offset); cpu_offset >= 0;
        cpu_offset = fdt_get_next_subnode(fdt, cpu_offset)) {
 
@@ -128,6 +131,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
     if (fdt_parse_pmp_alignment(fdt, cpu_offset, &pmp_granularity) == 0) {
       procs[cpu_idx]->set_pmp_granularity(pmp_granularity);
     }
+
 
     //handle mmu-type
     char mmu_type[256] = "";
@@ -170,6 +174,16 @@ sim_t::~sim_t()
   delete debug_mmu;
 }
 
+void sim_t::htif_run(){
+    pthread_create(&htif_thread, NULL, sim_t::run_htif_thread, this);
+    pthread_detach(htif_thread);
+}
+
+void * sim_t::run_htif_thread(void *arg){
+    htif_t *thiz = static_cast<htif_t *> (arg);
+    thiz->run();
+}
+
 void sim_thread_main(void* arg)
 {
   ((sim_t*)arg)->main();
@@ -192,10 +206,25 @@ void sim_t::main()
   }
 }
 
+void * sim_t::run_cosim_thread(void *arg){
+    sim_t *thiz = static_cast<sim_t *> (arg);
+    thiz->run();
+}
+
+void sim_t::cosim_run(){
+  std::cout << "----- sim_t cosim_run()-----" <<std::endl;
+  pthread_create(&cosim_thread, NULL, sim_t::run_cosim_thread, this);
+  pthread_detach(cosim_thread);
+}
+
 int sim_t::run()
 {
   host = context_t::current();
+  std::cout << "----- host run()-----" <<std::endl;
   target.init(sim_thread_main, this);
+  std::cout << "----- target run()-----" <<std::endl;
+  sc_controller->run();
+  std::cout << "----- sc_controller run()-----" <<std::endl;
   return htif_t::run();
 }
 
@@ -214,6 +243,11 @@ void sim_t::step(size_t n)
       if (++current_proc == procs.size()) {
         current_proc = 0;
         clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
+        // sync up with systemc
+        spike_event_t* event = createSyncTimeEvent(current_step,
+                INTERLEAVE / INSNS_PER_RTC_TICK);
+        sc_controller->add_spike_events(event);
+        sc_controller->notify_systemc();
       }
 
       host->switch_to();

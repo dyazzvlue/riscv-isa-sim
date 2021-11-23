@@ -3,12 +3,17 @@
 // termios-xspike sets up a canonical terminal and blocks forever.
 // It allows us to send Ctrl-C etc. to the target machine.
 
+#include <systemc.h>
 #include <unistd.h>
 #include <termios.h>
 #include <signal.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+int sc_main(int argc, char** argv){
+    return 0;
+}
 
 int main()
 {

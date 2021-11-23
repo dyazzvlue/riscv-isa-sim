@@ -14,6 +14,7 @@
 #include <memory>
 #include <fstream>
 #include "../VERSION"
+#include <pthread.h>
 
 static void help(int exit_code = 1)
 {
@@ -207,7 +208,8 @@ static unsigned long atoul_nonzero_safe(const char* s)
   return res;
 }
 
-int main(int argc, char** argv)
+//int main(int argc, char** argv)
+int sc_main(int argc, char** argv)
 {
   bool debug = false;
   bool halted = false;
@@ -449,6 +451,7 @@ int main(int argc, char** argv)
     s.set_remote_bitbang(&(*remote_bitbang));
   }
 
+
   if (dump_dts) {
     printf("%s", s.get_dts());
     return 0;
@@ -470,7 +473,11 @@ int main(int argc, char** argv)
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
 
-  auto return_code = s.run();
+  auto return_code = 1;
+  //auto return_code = s.run();
+  s.cosim_run();
+  sc_start(100,SC_SEC);
+
 
   for (auto& mem : mems)
     delete mem.second;

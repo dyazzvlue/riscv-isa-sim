@@ -16,6 +16,8 @@
 #include "log_file.h"
 #include "processor.h"
 #include "simif.h"
+#include "sysc_wrapper.h"
+#include "spike_event.h"
 
 #include <fesvr/htif.h>
 #include <fesvr/context.h>
@@ -23,6 +25,9 @@
 #include <string>
 #include <memory>
 #include <sys/types.h>
+#include <pthread.h>
+
+using namespace sc_cosim;
 
 class mmu_t;
 class remote_bitbang_t;
@@ -44,6 +49,11 @@ public:
 #endif
         FILE *cmd_file); // needed for command line option --cmd
   ~sim_t();
+
+  void cosim_run();
+  void htif_run();
+  static void *run_htif_thread(void *arg);
+  static void *run_cosim_thread(void *arg);
 
   // run the simulation to completion
   int run();
@@ -88,6 +98,12 @@ private:
   log_file_t log_file;
 
   FILE *cmd_file; // pointer to debug command input file
+
+  // systemc controller
+  sc_cosim::sysc_controller_t* sc_controller;
+  // co-sim htif thread
+  pthread_t htif_thread;
+  pthread_t cosim_thread;
 
 #ifdef HAVE_BOOST_ASIO
   // the following are needed for command socket interface
@@ -149,6 +165,10 @@ private:
   friend class processor_t;
   friend class mmu_t;
   friend class debug_module_t;
+
+  // systemc related class
+  friend class sysc_controller_t;
+  friend class spike_event_t;
 
   // htif
   friend void sim_thread_main(void*);

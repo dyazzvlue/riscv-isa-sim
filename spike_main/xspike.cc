@@ -3,6 +3,7 @@
 // xspike forks an xterm for spike's target machine console,
 // preserving the current terminal for debugging.
 
+#include <systemc.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -15,6 +16,9 @@
 static pid_t fork_spike(int tty_fd, int argc, char** argv);
 static pid_t fork_xterm(int* tty_fd);
 
+int sc_main(int argc, char** argv){
+    return 0;
+}
 int main(int argc, char** argv)
 {
   int tty_fd, wait_status, ret = -1;

@@ -11,6 +11,7 @@
 #include <map>
 #include <vector>
 #include <assert.h>
+#include <pthread.h>
 
 class htif_t : public chunked_memif_t
 {
@@ -23,6 +24,8 @@ class htif_t : public chunked_memif_t
   virtual void start();
   virtual void stop();
 
+//  void cosim_run();
+//  static void *run_thread(void *arg);
   int run();
   bool done();
   int exit_code();
@@ -106,6 +109,9 @@ class htif_t : public chunked_memif_t
   const std::vector<std::string>& target_args() { return targs; }
 
   std::map<uint64_t, std::string> addr2symbol;
+
+  //pthread_t thread;
+  pthread_mutex_t mtx;
 
   friend class memif_t;
   friend class syscall_t;

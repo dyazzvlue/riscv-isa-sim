@@ -24,13 +24,13 @@ public:
     }
     // basic notify method
     void notify(sc_time delay = SC_ZERO_TIME) {
-        log('-',"AsyncEvent","notify()");
+        log('-',this->name(),"notify()");
         this->delay = delay;
         async_request_update();
     }
 
     void sync_time(uint64_t steps){
-        log('-',"AsyncEvent","sync_time()");
+        log('-',this->name(),"sync_time()");
         // TODO
         // suppose one step = 1 NS
         sc_time tmp = sc_time(steps, SC_NS);

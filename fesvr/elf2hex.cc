@@ -4,7 +4,10 @@
 #include "htif_hexwriter.h"
 #include "memif.h"
 #include "elfloader.h"
-
+#include <systemc.h>
+int sc_main(int argc, char** argv){
+    return 0;
+}
 int main(int argc, char** argv)
 {
   if(argc < 4 || argc > 5)

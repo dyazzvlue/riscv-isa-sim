@@ -5,6 +5,7 @@
 // in its inputs, then output the RISC-V instruction with the disassembly
 // enclosed hexadecimal number.
 
+#include <systemc.h>
 #include <iostream>
 #include <string>
 #include <cstdint>
@@ -16,6 +17,9 @@
 
 using namespace std;
 
+int sc_main(int argc, char** argv){
+    return 0;
+}
 int main(int argc, char** argv)
 {
   string s;

@@ -19,7 +19,7 @@ sysc_wrapper_t::sysc_wrapper_t(
 void sysc_wrapper_t::run(){
     // Main thread of systemc wrapper
     while(true){
-//        sysc_log('=',this->name(),"waiting event");      
+//        sysc_log('=',this->name(),"waiting event");
         wait(event);
         sysc_log('=',this->name(),"sync up time");
         // wait time to target step 
@@ -36,10 +36,6 @@ void sysc_wrapper_t::event_notified(){
 }
 
 void sysc_wrapper_t::notify(uint64_t step){
-    if (notStarted){
-        notStarted=false;
-    }
-    //sc_process_handle_.resume();
     isSyncCompleted=false;
     event.sync_time(step);
 }
@@ -77,7 +73,6 @@ bool sysc_controller_t::notify_systemc(){
         return true;
     }
     std::cout << "Try notify " << std::endl;
-    // notify the sysc_control method
     pthread_mutex_lock(&this->mtx);
     this->is_notified = true;
     this->is_sc_completed = false;
@@ -104,7 +99,7 @@ void sysc_controller_t::add_spike_events(spike_event_t* i){
 
 spike_event_t* sysc_controller_t::get_first_spike_event(){
     spike_event_t* event = this->spike_events.front();
-    std::cout << " first spike event ";
+    std::cout << " current spike event ";
     event->show();
     this->spike_events.pop_front();
     return event;

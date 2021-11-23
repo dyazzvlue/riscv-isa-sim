@@ -12,6 +12,7 @@ pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 bool runsysc = false;
+bool start = false;
 
 void *runSystemC(void *arg) {
     sysc_controller_t* sys = (sysc_controller_t*)(arg);
@@ -33,7 +34,6 @@ void *runSystemC(void *arg) {
             }
         }
         pthread_mutex_unlock(&mtx);
-        // wake up sc_kernel
 
     }
 }
@@ -45,21 +45,27 @@ int sc_main(int argc, char* argv[]){
     pthread_create(&tmp, NULL, runSystemC, &sysc_controller);
     sysc_controller.run();
     pthread_detach(tmp);
+
+    sc_start(100,SC_NS);
     /*
     for (int i=0;i <20;i++){
         if (i %2 ==0){
             std::cout << "notify " << i << std::endl;
-            sysc_controller.add_spike_events(i);
-            if (sysc_controller.notify_systemc()){
-                std::cout << "systmc update complete" << std::endl;
+            spike_event_t* event= createSyncTimeEvent(0,i);
+            sysc_controller.add_spike_events(event);
+            if (start == false){
+                sc_start(SC_ZERO_TIME);
             }
-        }else{
-            //pass
+            sysc_controller.notify_systemc();
+            std::cout << "systmc update complete" << std::endl;
         }
+        else{
+            //pass
+       }
     }
-    */
+*/
     //sc_pause();
-    sc_start(100,SC_NS);
+//    sc_start(100,SC_NS);
 
     return 0;
 }
