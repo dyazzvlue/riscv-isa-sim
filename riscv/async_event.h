@@ -3,10 +3,15 @@
 #include<systemc.h>
 #include<pthread.h>
 #include<string>
-#include"sysc_log.h"
+#include "sysc_log.h"
+#include "spike_event.h"
+#include<list>
 
 using namespace std;
 using namespace sc_core;
+
+namespace sc_cosim{
+class spike_event_t;
 
 class AsyncEventIf : public sc_interface{
     virtual void notify(sc_time delay = SC_ZERO_TIME) =0;
@@ -38,6 +43,17 @@ public:
         notify();
     }
 
+    void recv_spike_event(std::list<spike_event_t*> events){
+        //log('-',this->name(), "recv spike event");
+        this->spike_event_list.assign(events.begin(), events.end());
+        std::cout << "recv spike event count " << this->spike_event_list.size() << std::endl;
+        notify();
+    }
+
+    std::list<spike_event_t*> get_spike_list(){
+        return this->spike_event_list;
+    }
+
     const sc_event &default_event(void) const {
         return event;
     }
@@ -58,7 +74,8 @@ protected:
     sc_event event;
     sc_time delay;
     sc_time steps;
+    std::list<spike_event_t*> spike_event_list;
 
 };
-
+}
 #endif

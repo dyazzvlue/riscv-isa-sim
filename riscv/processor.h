@@ -2,18 +2,26 @@
 #ifndef _RISCV_PROCESSOR_H
 #define _RISCV_PROCESSOR_H
 
+#include "spike_event.h"
+#include "cosim_fence.h"
 #include "decode.h"
 #include "config.h"
 #include "trap.h"
 #include "abstract_device.h"
 #include <string>
 #include <vector>
+#include <deque>
 #include <unordered_map>
 #include <map>
 #include <cassert>
 #include "debug_rom_defines.h"
 #include "entropy_source.h"
 #include "csrs.h"
+namespace sc_cosim{
+    class spike_event_t;
+}
+
+using namespace sc_cosim;
 
 class processor_t;
 class mmu_t;
@@ -364,6 +372,11 @@ public:
     HR_GROUP    /* Halt requested due to halt group. */
   } halt_request;
 
+  // check if the current instruction is FENCE
+  bool isFence(insn_t insn);
+  // return the result of disassemble
+  std::string get_insn_string(insn_t insn);
+
   // Return the index of a trigger that matched, or -1.
   inline int trigger_match(trigger_operation_t operation, reg_t address, reg_t data)
   {
@@ -453,6 +466,8 @@ public:
 
   const char* get_symbol(uint64_t addr);
 
+  spike_event_t* get_first_spike_event();
+
 private:
   simif_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
@@ -471,6 +486,9 @@ private:
   bool halt_on_reset;
   std::vector<bool> extension_table;
   std::vector<bool> impl_table;
+  // used for cosim events , no need to use deque?
+  //std::deque<spike_event_t*> cosim_event_table;
+  std::deque<cosim_fence_t*> cosim_fence_table;
 
   std::vector<insn_desc_t> instructions;
   std::map<reg_t,uint64_t> pc_histogram;
@@ -481,6 +499,8 @@ private:
   void take_pending_interrupt() { take_interrupt(state.mip->read() & state.mie->read()); }
   void take_interrupt(reg_t mask); // take first enabled interrupt in mask
   void take_trap(trap_t& t, reg_t epc); // take an exception
+  reg_t take_cosim_fence(mmu_t* _mmu, reg_t pc);
+
   void disasm(insn_t insn); // disassemble and print an instruction
   int paddr_bits();
 

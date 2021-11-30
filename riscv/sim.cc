@@ -238,8 +238,13 @@ void sim_t::step(size_t n)
     current_step += steps;
     if (current_step == INTERLEAVE)
     {
+      std::cout << "proc[" << current_proc <<  "] ready to next step" << std::endl;
       current_step = 0;
       procs[current_proc]->get_mmu()->yield_load_reservation();
+      if (procs[current_proc]->get_first_spike_event() != NULL){
+          std::cout << "proc[" << current_proc <<"] add spike event" << std::endl;
+          sc_controller->add_spike_events(procs[current_proc]->get_first_spike_event());
+      }
       if (++current_proc == procs.size()) {
         current_proc = 0;
         clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);

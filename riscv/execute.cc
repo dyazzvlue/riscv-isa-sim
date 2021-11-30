@@ -4,6 +4,7 @@
 #include "mmu.h"
 #include "disasm.h"
 #include <cassert>
+#include "cosim_fence.h"
 
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
@@ -170,13 +171,27 @@ inline void processor_t::update_histogram(reg_t pc)
 // This is expected to be inlined by the compiler so each use of execute_insn
 // includes a duplicated body of the function to get separate fetch.func
 // function calls.
-static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
+//
+//bool tmpFence = false;
+static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch,
+        bool runFence = false)
 {
   commit_log_reset(p);
   commit_log_stash_privilege(p);
   reg_t npc;
 
   try {
+      //if (runFence == true || tmpFence ==true ){
+      if (runFence == true){
+          std::string insn_str= p->get_insn_string(fetch.insn);
+          std::cout << "Processor run insn: " << insn_str << std::endl;
+      }
+    // if is FENCE, throw
+      if (p->isFence(fetch.insn)&& runFence == false){
+          std::cout << "Meet fence , throw " << std::endl;
+//          tmpFence = true;
+          throw cosim_fence_t();
+      }
     npc = fetch.func(p, fetch.insn, pc);
     if (npc != PC_SERIALIZE_BEFORE) {
 
@@ -211,6 +226,22 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
   p->update_histogram(pc);
 
   return npc;
+}
+
+
+bool processor_t::isFence(insn_t insn){
+    std::string insn_str = this->get_insn_string(insn);
+    //if (insn_str == "fence iorw,iorw"){
+    if (insn_str.find("fence")!=std::string::npos){
+        std::cout << "fence inst " << insn_str << std::endl;
+        return true;
+    }else{
+        return false;
+    }
+}
+
+std::string processor_t::get_insn_string(insn_t insn){
+    return this->disassembler->disassemble(insn);
 }
 
 bool processor_t::slow_path()
@@ -248,6 +279,7 @@ void processor_t::step(size_t n)
        pc = state.pc; \
        break; \
      } else { \
+       /*std::cout << "[advance_pc() invalid_pc]" << std::endl;*/ \
        state.pc = pc; \
        instret++; \
      }
@@ -255,6 +287,8 @@ void processor_t::step(size_t n)
     try
     {
       take_pending_interrupt();
+      // rocc cosim fence
+      pc = take_cosim_fence(mmu, pc);
 
       if (unlikely(slow_path()))
       {
@@ -295,7 +329,7 @@ void processor_t::step(size_t n)
           instret++;
           state.pc = pc;
         }
-
+//        std::cout << "Run advance_pc()" << std::endl;
         advance_pc();
       }
     }
@@ -347,8 +381,83 @@ void processor_t::step(size_t n)
       // there is activity.
       n = ++instret;
     }
+    catch (cosim_fence_t &t){
+        // Waiting for fence, used for RoCC
+        // TODO
+        // waiting for fence , do nothing
+        std::cout << "catch cosim_fence " << std::endl;
+        // create a spike event
+        spike_event_t* event = createRoccInstEvent(instret, instret);
+        t.set_spike_event(event);
+        this->cosim_fence_table.push_back(&t);
+        n = ++instret;
+    }
 
     state.minstret->bump(instret);
     n -= instret;
   }
+}
+
+reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc){
+    // TODO 
+    // check the events in cosim_event_table,
+    // if the event is finished, run the pending fence instruction
+    // else keep waiting
+    if (this->cosim_fence_table.empty()){
+//        std::cout << "No pending fence " << std::endl;
+        return pc;
+    }else{
+        std::cout << "has pending fence " << std::endl;
+
+       cosim_fence_t* cosim_fence = this->cosim_fence_table.front();
+       spike_event_t* first_event = cosim_fence->get_spike_event();
+//       spike_event_t* first_event = this->cosim_event_table.front();
+       if (first_event->isFinished()){
+            std::cout << "Pending fence finished" << std::endl;
+           // pc run a instruction and release the cosim_fence
+           this->cosim_fence_table.pop_front();
+           //reg_t pc = state.pc;
+           for (auto ic_entry = _mmu->access_icache(pc); ; ){
+               insn_fetch_t fetch = ic_entry->data;
+               //insn_fetch_t fetch = mmu->load_insn(pc);
+               if (debug && !state.serialized){
+                    disasm(fetch.insn);
+               }
+               pc = execute_insn(this, pc, fetch, true);
+               ic_entry = ic_entry->next;
+               if (unlikely(ic_entry->tag != pc)){
+                   break;
+               }
+               this->state.pc = pc;
+           //state.pc = pc;
+           }
+           if (unlikely(invalid_pc(pc))){
+               switch (pc){
+                     case PC_SERIALIZE_BEFORE: state.serialized = true; break;
+                     case PC_SERIALIZE_AFTER: std::cout << "[PC_AFTER]" << std:: endl; break;
+                     case PC_SERIALIZE_WFI: std::cout << "[PC_WFI] " << std::endl; break;
+                    default: abort();
+               }
+               pc = this->state.pc;
+           }else{
+               this->state.pc =pc;
+               std::cout << "!unlikey(invalid pc) " << pc  << std::endl;
+           }
+       }else{
+            std::cout << "Pending fence not finished" << std::endl;
+           //TODO
+       }
+       std::cout << "Take cosim fence complete" << std::endl;
+    }
+    return pc;
+}
+
+spike_event_t* processor_t::get_first_spike_event(){
+    if (this->cosim_fence_table.empty()){
+        return NULL;
+    }
+    cosim_fence_t* cosim_fence = this->cosim_fence_table.front();
+    spike_event_t* event = cosim_fence->get_spike_event();
+    return event;
+//    return (this->cosim_fence_table.pop_front())->get_spike_event();
 }

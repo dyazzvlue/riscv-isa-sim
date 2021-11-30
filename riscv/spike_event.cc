@@ -6,9 +6,10 @@ namespace sc_cosim{
         this->type = _type;
         this->start_time = _start_time;
         this->steps = _steps;
+        this->state = false;
     }
 
-    spike_event_type  spike_event_t::getType(){
+    spike_event_type  spike_event_t::get_type(){
         return this->type;
     }
 
@@ -17,7 +18,16 @@ namespace sc_cosim{
     }
 
     uint64_t spike_event_t::get_steps(){
+        std::cout << "Try get steps " << this->steps <<  std::endl;
         return this->steps;
+    }
+
+    bool spike_event_t::isFinished(){
+        return this->state;
+    }
+
+    void spike_event_t::finish(){
+        this->state = true;
     }
 
     void spike_event_t::show(){

@@ -3,13 +3,16 @@
 #include<systemc.h>
 #include<pthread.h>
 #include<string>
-#include"async_event.h"
 #include"spike_event.h"
+#include"async_event.h"
 #include"sysc_log.h"
 #include <deque>
+#include <list>
 #include <unistd.h>
+
 namespace sc_cosim{
 
+class spike_event_t;
 using namespace std;
 using namespace sc_core;
 
@@ -25,6 +28,8 @@ public:
     void run();
     void event_notified();
     void notify(uint64_t step);
+    void notify(std::list<spike_event_t*> events);
+    void send_rocc_rqst(spike_event_t* event); // send rocc rqst to systemc model
     bool is_sync_complete();
     pthread_mutex_t mtx;
     pthread_cond_t cond;
@@ -35,6 +40,7 @@ private:
     sc_process_handle sc_process_handle_;
     bool notStarted=true;
     bool isSyncCompleted=false;
+    std::list<spike_event_t*> waiting_event_list;
 };
 
 class sysc_controller_t{
