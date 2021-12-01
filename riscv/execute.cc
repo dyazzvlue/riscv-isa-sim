@@ -189,7 +189,6 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch,
     // if is FENCE, throw
       if (p->isFence(fetch.insn)&& runFence == false){
           std::cout << "Meet fence , throw " << std::endl;
-//          tmpFence = true;
           throw cosim_fence_t();
       }
     npc = fetch.func(p, fetch.insn, pc);
@@ -262,9 +261,10 @@ void processor_t::step(size_t n)
       enter_debug_mode(DCSR_CAUSE_HALT);
     }
   }
-
+  this->inst_count = 0;
   while (n > 0) {
     size_t instret = 0;
+    size_t fence_steps = -1; // steps in take_cosim_fence();
     reg_t pc = state.pc;
     mmu_t* _mmu = mmu;
 
@@ -288,7 +288,18 @@ void processor_t::step(size_t n)
     {
       take_pending_interrupt();
       // rocc cosim fence
-      pc = take_cosim_fence(mmu, pc);
+      pc = take_cosim_fence(mmu, pc, &fence_steps);
+      if (fence_steps == -1){
+          // the pending fence not complete, keep wait
+          std::cout << "pending fence not complete" << std::endl;
+          break;
+      }else{
+          if (fence_steps != 0){
+              std::cout << "take_cosim_fence spend " << fence_steps 
+                  << " steps " <<std::endl;
+          }
+          instret+=fence_steps;
+      }
 
       if (unlikely(slow_path()))
       {
@@ -391,28 +402,30 @@ void processor_t::step(size_t n)
         t.set_spike_event(event);
         this->cosim_fence_table.push_back(&t);
         n = ++instret;
+        std::cout << "instret: " << instret << std::endl;
     }
-
     state.minstret->bump(instret);
+    this->inst_count += instret;
     n -= instret;
   }
+  std::cout << "Executed " << this->inst_count << " in this step" << std::endl;
+  this->executed_inst += this->inst_count;
 }
 
-reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc){
+reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t *steps){
     // TODO 
     // check the events in cosim_event_table,
     // if the event is finished, run the pending fence instruction
     // else keep waiting
     if (this->cosim_fence_table.empty()){
-//        std::cout << "No pending fence " << std::endl;
+        *steps = 0; // TODO: not a good way
         return pc;
     }else{
-        std::cout << "has pending fence " << std::endl;
-
+       std::cout << "has pending fence " << std::endl;
        cosim_fence_t* cosim_fence = this->cosim_fence_table.front();
        spike_event_t* first_event = cosim_fence->get_spike_event();
-//       spike_event_t* first_event = this->cosim_event_table.front();
        if (first_event->isFinished()){
+           size_t step = 0;
             std::cout << "Pending fence finished" << std::endl;
            // pc run a instruction and release the cosim_fence
            this->cosim_fence_table.pop_front();
@@ -424,28 +437,31 @@ reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc){
                     disasm(fetch.insn);
                }
                pc = execute_insn(this, pc, fetch, true);
+               step++;
                ic_entry = ic_entry->next;
                if (unlikely(ic_entry->tag != pc)){
                    break;
                }
                this->state.pc = pc;
-           //state.pc = pc;
            }
            if (unlikely(invalid_pc(pc))){
                switch (pc){
                      case PC_SERIALIZE_BEFORE: state.serialized = true; break;
-                     case PC_SERIALIZE_AFTER: std::cout << "[PC_AFTER]" << std:: endl; break;
-                     case PC_SERIALIZE_WFI: std::cout << "[PC_WFI] " << std::endl; break;
+                     case PC_SERIALIZE_AFTER: ++step; break;
+                     case PC_SERIALIZE_WFI: std::cout << "[WFI] after take cosim fence" << std::endl; break;
                     default: abort();
                }
                pc = this->state.pc;
            }else{
-               this->state.pc =pc;
-               std::cout << "!unlikey(invalid pc) " << pc  << std::endl;
+               this->state.pc = pc;
+               step++;
            }
+           // update the steps, let processor know how many step spent
+           *steps = step;
        }else{
             std::cout << "Pending fence not finished" << std::endl;
-           //TODO
+           //TODO keep waiting, no need to add a new cosim fence
+           // return a nullptr steps
        }
        std::cout << "Take cosim fence complete" << std::endl;
     }
@@ -459,5 +475,12 @@ spike_event_t* processor_t::get_first_spike_event(){
     cosim_fence_t* cosim_fence = this->cosim_fence_table.front();
     spike_event_t* event = cosim_fence->get_spike_event();
     return event;
-//    return (this->cosim_fence_table.pop_front())->get_spike_event();
+}
+
+size_t processor_t::get_executed_inst(){
+    return this->executed_inst;
+}
+
+size_t processor_t::get_inst_count(){
+    return this->inst_count;
 }

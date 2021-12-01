@@ -122,6 +122,7 @@ private:
   static const size_t CPU_HZ = 1000000000; // 1GHz CPU
   size_t current_step;
   size_t current_proc;
+  size_t last_cosim_sync_steps = 0; // last_cosim_sync_steps
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
   bool log;

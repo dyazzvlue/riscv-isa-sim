@@ -230,16 +230,19 @@ int sim_t::run()
 
 void sim_t::step(size_t n)
 {
+  size_t cosim_sync_step = 0;
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
-
     current_step += steps;
     if (current_step == INTERLEAVE)
     {
-      std::cout << "proc[" << current_proc <<  "] ready to next step" << std::endl;
+      std::cout << "proc[" << current_proc <<  "] executed " 
+          << procs[current_proc]->get_inst_count()
+          << " instructions ,ready to next step" << std::endl;
       current_step = 0;
+      cosim_sync_step = std::max(cosim_sync_step, procs[current_proc]->get_inst_count());
       procs[current_proc]->get_mmu()->yield_load_reservation();
       if (procs[current_proc]->get_first_spike_event() != NULL){
           std::cout << "proc[" << current_proc <<"] add spike event" << std::endl;
@@ -249,8 +252,9 @@ void sim_t::step(size_t n)
         current_proc = 0;
         clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
         // sync up with systemc
-        spike_event_t* event = createSyncTimeEvent(current_step,
-                INTERLEAVE / INSNS_PER_RTC_TICK);
+        spike_event_t* event = createSyncTimeEvent(last_cosim_sync_steps,
+                cosim_sync_step / INSNS_PER_RTC_TICK);
+        last_cosim_sync_steps += cosim_sync_step;
         sc_controller->add_spike_events(event);
         sc_controller->notify_systemc();
       }

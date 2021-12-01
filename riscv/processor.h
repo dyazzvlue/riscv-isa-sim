@@ -376,6 +376,10 @@ public:
   bool isFence(insn_t insn);
   // return the result of disassemble
   std::string get_insn_string(insn_t insn);
+  // return the number of total executed instructions
+  size_t get_executed_inst();
+  // return the number of executed instructions in last step
+  size_t get_inst_count();
 
   // Return the index of a trigger that matched, or -1.
   inline int trigger_match(trigger_operation_t operation, reg_t address, reg_t data)
@@ -499,7 +503,11 @@ private:
   void take_pending_interrupt() { take_interrupt(state.mip->read() & state.mie->read()); }
   void take_interrupt(reg_t mask); // take first enabled interrupt in mask
   void take_trap(trap_t& t, reg_t epc); // take an exception
-  reg_t take_cosim_fence(mmu_t* _mmu, reg_t pc);
+  reg_t take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t* steps);
+
+  size_t executed_inst = 0; // total executed instructions
+  size_t inst_count = 0; // inst cout for each step
+
 
   void disasm(insn_t insn); // disassemble and print an instruction
   int paddr_bits();
