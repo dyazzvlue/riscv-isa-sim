@@ -114,7 +114,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
     return;
 
   //systemc controller
-  sc_controller = new sysc_controller_t("sysc_testing");
+  sc_controller = new sysc_controller_t("sysc_controller");
 
   for (cpu_offset = fdt_get_first_subnode(fdt, cpu_offset); cpu_offset >= 0;
        cpu_offset = fdt_get_next_subnode(fdt, cpu_offset)) {
@@ -174,16 +174,6 @@ sim_t::~sim_t()
   delete debug_mmu;
 }
 
-void sim_t::htif_run(){
-    pthread_create(&htif_thread, NULL, sim_t::run_htif_thread, this);
-    pthread_detach(htif_thread);
-}
-
-void * sim_t::run_htif_thread(void *arg){
-    htif_t *thiz = static_cast<htif_t *> (arg);
-    thiz->run();
-}
-
 void sim_thread_main(void* arg)
 {
   ((sim_t*)arg)->main();
@@ -212,19 +202,20 @@ void * sim_t::run_cosim_thread(void *arg){
 }
 
 void sim_t::cosim_run(){
-  std::cout << "----- sim_t cosim_run()-----" <<std::endl;
+  fprintf(cosim_log_file,"----- sim_t cosim_run()-----\n");
   pthread_create(&cosim_thread, NULL, sim_t::run_cosim_thread, this);
   pthread_detach(cosim_thread);
+  //TODO kill the thread when htfi_t::run() completed
 }
 
 int sim_t::run()
 {
   host = context_t::current();
-  std::cout << "----- host run()-----" <<std::endl;
   target.init(sim_thread_main, this);
-  std::cout << "----- target run()-----" <<std::endl;
-  sc_controller->run();
-  std::cout << "----- sc_controller run()-----" <<std::endl;
+  if (cosim_enabled){
+    sc_controller->run();
+    sc_controller->set_log_file(this->cosim_log_file);
+  }
   return htif_t::run();
 }
 
@@ -238,25 +229,32 @@ void sim_t::step(size_t n)
     current_step += steps;
     if (current_step == INTERLEAVE)
     {
-      std::cout << "proc[" << current_proc <<  "] executed " 
-          << procs[current_proc]->get_inst_count()
-          << " instructions ,ready to next step" << std::endl;
-      current_step = 0;
-      cosim_sync_step = std::max(cosim_sync_step, procs[current_proc]->get_inst_count());
-      procs[current_proc]->get_mmu()->yield_load_reservation();
-      if (procs[current_proc]->get_first_spike_event() != NULL){
-          std::cout << "proc[" << current_proc <<"] add spike event" << std::endl;
+      if (cosim_enabled){
+        fprintf(cosim_log_file, "proc%4" PRId32 ": ",
+            procs[current_proc]->get_id());
+        fprintf(cosim_log_file, " executed%8l" PRId32 "",
+            procs[current_proc]->get_inst_count());
+        fprintf(cosim_log_file, " instructions\n");
+        cosim_sync_step = std::max(cosim_sync_step, procs[current_proc]->get_inst_count());
+        // if current procesor  has spike event, add to sc_controller
+        if (procs[current_proc]->get_first_spike_event() != NULL){
+          fprintf(cosim_log_file, " add spike event\n");
           sc_controller->add_spike_events(procs[current_proc]->get_first_spike_event());
+        }
       }
+      current_step = 0;
+      procs[current_proc]->get_mmu()->yield_load_reservation();
       if (++current_proc == procs.size()) {
         current_proc = 0;
         clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
-        // sync up with systemc
-        spike_event_t* event = createSyncTimeEvent(last_cosim_sync_steps,
-                cosim_sync_step / INSNS_PER_RTC_TICK);
-        last_cosim_sync_steps += cosim_sync_step;
-        sc_controller->add_spike_events(event);
-        sc_controller->notify_systemc();
+        if (cosim_enabled){
+          // sync up with systemc
+          spike_event_t* event = createSyncTimeEvent(last_cosim_sync_steps,
+            cosim_sync_step / INSNS_PER_RTC_TICK);
+          last_cosim_sync_steps += cosim_sync_step;
+          sc_controller->add_spike_events(event);
+          sc_controller->notify_systemc();
+        }
       }
 
       host->switch_to();
@@ -295,6 +293,25 @@ void sim_t::configure_log(bool enable_log, bool enable_commitlog)
     proc->enable_log_commits();
   }
 #endif
+}
+
+void sim_t::configure_cosim(bool enable_cosim, const char* cosim_log,
+        const char* cosim_insn){
+    if (cosim_log == nullptr){
+        cosim_log = "cosim_trace.log";
+    }
+    if (cosim_insn == nullptr){
+        cosim_insn = "fence";
+    }
+    this->cosim_enabled = enable_cosim;
+    log_file_t* tmp = new log_file_t(cosim_log);
+    this->cosim_log_file = tmp->get();
+    for (processor_t *proc : procs) {
+        proc->enable_cosim(enable_cosim, this->cosim_log_file);
+        // TODO set the target instruction here to send cosim-event
+        // TODO change to vector
+        proc->set_cosim_insn(cosim_insn);
+    }
 }
 
 void sim_t::set_procs_debug(bool value)

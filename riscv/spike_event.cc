@@ -18,7 +18,6 @@ namespace sc_cosim{
     }
 
     uint64_t spike_event_t::get_steps(){
-        std::cout << "Try get steps " << this->steps <<  std::endl;
         return this->steps;
     }
 
@@ -37,5 +36,17 @@ namespace sc_cosim{
         }else if (this->type == spike_event_type::rocc_inst){
             std::cout << "[rocc_inst]" << std::endl;
         }
+    }
+
+    std::string spike_event_t::info(){
+        std::stringstream s;
+        if (this->type == spike_event_type::sync_time){
+            s << "[sync_time] start time : " << this->start_time 
+                << " steps: " << this->steps;
+        }else if (this->type == spike_event_type::rocc_inst){
+            s << "[rocc_inst]";
+        }
+        return s.str();
+
     }
 }

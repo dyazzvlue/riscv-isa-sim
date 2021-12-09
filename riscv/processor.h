@@ -373,13 +373,23 @@ public:
   } halt_request;
 
   // check if the current instruction is FENCE
-  bool isFence(insn_t insn);
+  bool is_fence(insn_t insn);
+  // check if the current instruction is cosim instruction
+  bool is_cosim_insn(insn_t insn);
   // return the result of disassemble
   std::string get_insn_string(insn_t insn);
   // return the number of total executed instructions
   size_t get_executed_inst();
   // return the number of executed instructions in last step
   size_t get_inst_count();
+  // enable_cosim
+  void enable_cosim(bool enable_cosim, FILE* cosim_log);
+  // get cosim enabled
+  bool get_cosim_enabled() { return this->cosim_enabled; }
+  // set cosim_instruction
+  void set_cosim_insn(const char* cosim_insn);
+  // get cosim log file
+  FILE *get_cosim_log_file() { return cosim_log_file; }
 
   // Return the index of a trigger that matched, or -1.
   inline int trigger_match(trigger_operation_t operation, reg_t address, reg_t data)
@@ -486,6 +496,8 @@ private:
   bool histogram_enabled;
   bool log_commits_enabled;
   FILE *log_file;
+  bool cosim_enabled;
+  FILE *cosim_log_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
   bool halt_on_reset;
   std::vector<bool> extension_table;
@@ -493,6 +505,9 @@ private:
   // used for cosim events , no need to use deque?
   //std::deque<spike_event_t*> cosim_event_table;
   std::deque<cosim_fence_t*> cosim_fence_table;
+  // cosim instruction, which will be catched in simulation.
+  // If catched , a cosim_event will be added
+  const char* cosim_insn;
 
   std::vector<insn_desc_t> instructions;
   std::map<reg_t,uint64_t> pc_histogram;

@@ -33,6 +33,7 @@ public:
     bool is_sync_complete();
     pthread_mutex_t mtx;
     pthread_cond_t cond;
+    void set_log_file(FILE* file);
 
 private:
     // TODO running flags
@@ -41,6 +42,7 @@ private:
     bool notStarted=true;
     bool isSyncCompleted=false;
     std::list<spike_event_t*> waiting_event_list;
+    FILE* log_file;
 };
 
 class sysc_controller_t{
@@ -62,6 +64,7 @@ class sysc_controller_t{
         void add_spike_events(spike_event_t* spike_event);
         // return first event in spike sync request, TBD
         spike_event_t* get_first_spike_event();
+        void set_log_file(FILE* file);
 
     private:
         pthread_t thread;
@@ -73,6 +76,7 @@ class sysc_controller_t{
         sysc_wrapper_t sysc_wrapper;
         // deque of pending events from spike, TBD
         std::deque<spike_event_t*> spike_events;
+        FILE* log_file;
 };
 
 }

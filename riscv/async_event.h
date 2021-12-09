@@ -29,13 +29,11 @@ public:
     }
     // basic notify method
     void notify(sc_time delay = SC_ZERO_TIME) {
-        log('-',this->name(),"notify()");
         this->delay = delay;
         async_request_update();
     }
 
     void sync_time(uint64_t steps){
-        log('-',this->name(),"sync_time()");
         // TODO
         // suppose one step = 1 NS
         sc_time tmp = sc_time(steps, SC_NS);
@@ -46,7 +44,6 @@ public:
     void recv_spike_event(std::list<spike_event_t*> events){
         //log('-',this->name(), "recv spike event");
         this->spike_event_list.assign(events.begin(), events.end());
-        std::cout << "recv spike event count " << this->spike_event_list.size() << std::endl;
         notify();
     }
 

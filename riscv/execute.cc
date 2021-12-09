@@ -172,24 +172,31 @@ inline void processor_t::update_histogram(reg_t pc)
 // includes a duplicated body of the function to get separate fetch.func
 // function calls.
 //
-//bool tmpFence = false;
 static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch,
-        bool runFence = false)
+        bool run_cosim_insn = false)
 {
   commit_log_reset(p);
   commit_log_stash_privilege(p);
   reg_t npc;
 
   try {
-      //if (runFence == true || tmpFence ==true ){
-      if (runFence == true){
-          std::string insn_str= p->get_insn_string(fetch.insn);
-          std::cout << "Processor run insn: " << insn_str << std::endl;
-      }
-    // if is FENCE, throw
-      if (p->isFence(fetch.insn)&& runFence == false){
-          std::cout << "Meet fence , throw " << std::endl;
-          throw cosim_fence_t();
+      if (p->get_cosim_enabled()){
+        if (run_cosim_insn == true){
+              std::string insn_str= p->get_insn_string(fetch.insn);
+              fprintf(p->get_cosim_log_file(), "proc%4" PRId32 ": ",
+                  p->get_id());
+              fprintf(p->get_cosim_log_file(), insn_str.c_str());
+              fprintf(p->get_cosim_log_file(), "\n");
+        }
+        // if is cosim instrcution, throw
+        // if (p->is_fence(fetch.insn)&& run_cosim_insn == false){
+        if (p->is_cosim_insn(fetch.insn)&& run_cosim_insn == false){
+            fprintf(p->get_cosim_log_file(), "proc%4" PRId32 ": ",
+                p->get_id());
+            fprintf(p->get_cosim_log_file(), " meet cosim insn, throw\n");
+            throw cosim_fence_t(fetch.insn);
+        }
+
       }
     npc = fetch.func(p, fetch.insn, pc);
     if (npc != PC_SERIALIZE_BEFORE) {
@@ -228,11 +235,22 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch,
 }
 
 
-bool processor_t::isFence(insn_t insn){
+bool processor_t::is_fence(insn_t insn){
     std::string insn_str = this->get_insn_string(insn);
-    //if (insn_str == "fence iorw,iorw"){
     if (insn_str.find("fence")!=std::string::npos){
         std::cout << "fence inst " << insn_str << std::endl;
+        return true;
+    }else{
+        return false;
+    }
+}
+
+bool processor_t::is_cosim_insn(insn_t insn){
+    std::string insn_str = this->get_insn_string(insn);
+    if (insn_str.find(this->cosim_insn)!=std::string::npos){
+        fprintf(this->cosim_log_file, "catch cosim insn: ");
+        fprintf(this->cosim_log_file, insn_str.c_str());
+        fprintf(this->cosim_log_file, "\n");
         return true;
     }else{
         return false;
@@ -287,18 +305,21 @@ void processor_t::step(size_t n)
     try
     {
       take_pending_interrupt();
-      // rocc cosim fence
-      pc = take_cosim_fence(mmu, pc, &fence_steps);
-      if (fence_steps == -1){
+      if (cosim_enabled){
+        // take cosim fence
+        pc = take_cosim_fence(mmu, pc, &fence_steps);
+        if (fence_steps == (size_t)-1){
           // the pending fence not complete, keep wait
-          std::cout << "pending fence not complete" << std::endl;
           break;
-      }else{
+        }else{
           if (fence_steps != 0){
-              std::cout << "take_cosim_fence spend " << fence_steps 
-                  << " steps " <<std::endl;
+            fprintf(get_cosim_log_file(), "proc%4" PRId32 ": ",
+                get_id());
+            fprintf(cosim_log_file, " take_cosim_fence spend %d", fence_steps);
+            fprintf(cosim_log_file, " steps\n");
           }
           instret+=fence_steps;
+        }
       }
 
       if (unlikely(slow_path()))
@@ -346,6 +367,8 @@ void processor_t::step(size_t n)
     }
     catch(trap_t& t)
     {
+      //std::cout << "[DEBUG] taking trap " << this->get_insn_string(t.get_tinst())
+      //   <<  std::endl;
       take_trap(t, pc);
       n = instret;
 
@@ -393,22 +416,28 @@ void processor_t::step(size_t n)
       n = ++instret;
     }
     catch (cosim_fence_t &t){
-        // Waiting for fence, used for RoCC
         // TODO
-        // waiting for fence , do nothing
-        std::cout << "catch cosim_fence " << std::endl;
+        // waiting for cosim-fence , do nothing
+        fprintf(this->cosim_log_file, "proc%4" PRId32 ": ",
+            this->get_id());
+        fprintf(this->cosim_log_file, " catch cosim_fence\n");
         // create a spike event
-        spike_event_t* event = createRoccInstEvent(instret, instret);
+        spike_event_t* event = createRoccInstEvent(instret, instret, t.get_cosim_insn());
         t.set_spike_event(event);
         this->cosim_fence_table.push_back(&t);
         n = ++instret;
-        std::cout << "instret: " << instret << std::endl;
+        //std::cout << "instret: " << instret << std::endl;
     }
     state.minstret->bump(instret);
     this->inst_count += instret;
     n -= instret;
   }
-  std::cout << "Executed " << this->inst_count << " in this step" << std::endl;
+  /*
+  fprintf(this->cosim_log_file, "proc%4" PRId32 ": ",
+    this->get_id());
+  fprintf(this->cosim_log_file, " executed%8l " PRId32 " instructions\n",
+    this->inst_count);
+  */
   this->executed_inst += this->inst_count;
 }
 
@@ -421,12 +450,14 @@ reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t *steps){
         *steps = 0; // TODO: not a good way
         return pc;
     }else{
-       std::cout << "has pending fence " << std::endl;
+       fprintf(cosim_log_file, "proc%4" PRId32 ": ", this->get_id());
+       fprintf(cosim_log_file, " has pending fence\n");
        cosim_fence_t* cosim_fence = this->cosim_fence_table.front();
        spike_event_t* first_event = cosim_fence->get_spike_event();
        if (first_event->isFinished()){
            size_t step = 0;
-            std::cout << "Pending fence finished" << std::endl;
+           fprintf(cosim_log_file, "proc%4" PRId32 ": ", this->get_id());
+           fprintf(cosim_log_file, " pending fence finished\n");
            // pc run a instruction and release the cosim_fence
            this->cosim_fence_table.pop_front();
            //reg_t pc = state.pc;
@@ -459,11 +490,13 @@ reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t *steps){
            // update the steps, let processor know how many step spent
            *steps = step;
        }else{
-            std::cout << "Pending fence not finished" << std::endl;
+           fprintf(cosim_log_file, "proc%4" PRId32 ": ", this->get_id());
+           fprintf(cosim_log_file, " pending fence not finished\n");
            //TODO keep waiting, no need to add a new cosim fence
            // return a nullptr steps
        }
-       std::cout << "Take cosim fence complete" << std::endl;
+       fprintf(cosim_log_file, "proc%4" PRId32 ": ", this->get_id());
+       fprintf(cosim_log_file, " take cosim fence complete\n");
     }
     return pc;
 }
@@ -483,4 +516,14 @@ size_t processor_t::get_executed_inst(){
 
 size_t processor_t::get_inst_count(){
     return this->inst_count;
+}
+
+void processor_t::enable_cosim(bool enable_cosim, FILE* cosim_log){
+    this->cosim_enabled = true;
+    this->cosim_log_file = cosim_log;
+}
+
+// TODO change to a vector to save the cosim instructions
+void processor_t::set_cosim_insn(const char* cosim_insn){
+    this->cosim_insn = cosim_insn;
 }

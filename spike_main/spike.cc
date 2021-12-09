@@ -73,7 +73,9 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-abstract-csr  Debug module won't support abstract to authenticate\n");
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
-
+  fprintf(stderr, "  --cosim               Cosimulation with systemC\n");
+  fprintf(stderr, "  --cosim-log=<path>    File name for cosimulation log\n");
+  fprintf(stderr, "  --cosim-insn=<name>   Name of instruction which shoule executed in another simulation\n");
   exit(exit_code);
 }
 
@@ -254,6 +256,9 @@ int sc_main(int argc, char** argv)
     .support_impebreak = true
   };
   std::vector<int> hartids;
+  bool cosim = false;
+  const char *cosim_log = nullptr;
+  const char *cosim_insn = nullptr;
 
   auto const hartids_parser = [&](const char *s) {
     std::string const str(s);
@@ -378,6 +383,11 @@ int sc_main(int argc, char** argv)
         exit(-1);
      }
   });
+  parser.option(0, "cosim", 0, [&](const char *s){cosim = true;});
+  parser.option(0, "cosim-log", 1,
+                [&](const char* s){cosim = true; cosim_log = s;});
+  parser.option(0, "cosim-insn", 1,
+                [&](const char* s){cosim = true; cosim_insn = s;});
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -474,9 +484,18 @@ int sc_main(int argc, char** argv)
   s.set_histogram(histogram);
 
   auto return_code = 1;
+  if (cosim == true ){
+      s.configure_cosim(cosim, cosim_log, cosim_insn);
+      s.cosim_run();
+      sc_start(100,SC_SEC);
+  }else {
+      return_code = s.run();
+  }
+
   //auto return_code = s.run();
-  s.cosim_run();
-  sc_start(100,SC_SEC);
+  //start cosim
+//  s.cosim_run();
+//   sc_start(100,SC_SEC);
 
 
   for (auto& mem : mems)

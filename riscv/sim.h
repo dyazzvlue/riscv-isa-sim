@@ -68,6 +68,14 @@ public:
   // function will print an error message and abort).
   void configure_log(bool enable_log, bool enable_commitlog);
 
+  // Configure cosim logging
+  // If enable_log is true, co-simulation trace will be generated.
+  // If cosim_log file is null, a default trace file named as "cosim_trace.log"
+  // will be generated.
+  void configure_cosim(bool enable_cosim,
+          const char* cosim_log = "cosim_trace.log",
+          const char* cosim_insn = "fence");
+
   void set_procs_debug(bool value);
   void set_remote_bitbang(remote_bitbang_t* remote_bitbang) {
     this->remote_bitbang = remote_bitbang;
@@ -96,6 +104,8 @@ private:
   std::unique_ptr<clint_t> clint;
   bus_t bus;
   log_file_t log_file;
+  FILE *cosim_log_file;
+  bool cosim_enabled;
 
   FILE *cmd_file; // pointer to debug command input file
 
