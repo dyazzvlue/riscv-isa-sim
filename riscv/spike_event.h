@@ -51,5 +51,11 @@ inline spike_event_t* createRoccInstEvent(uint64_t start_time, uint64_t steps,
     return event;
 }
 
+inline spike_event_t* createRoccInsnEvent() {
+    spike_event_t* event = new spike_event_t(spike_event_type::rocc_inst,
+            0,0);
+    std::cout << "create a dummy rocc insn event" << std::endl;
+    return event;
+}
 }
 #endif

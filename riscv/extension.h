@@ -7,6 +7,7 @@
 #include "disasm.h"
 #include <vector>
 #include <functional>
+#include <iostream>
 
 class extension_t
 {
@@ -25,6 +26,11 @@ class extension_t
   void illegal_instruction();
   void raise_interrupt();
   void clear_interrupt();
+ public:
+  void set_cosim_enabled();
+  bool is_cosim_enabled();
+ protected:
+  bool cosim_enabled = false;
 };
 
 std::function<extension_t*()> find_extension(const char* name);

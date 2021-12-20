@@ -475,8 +475,9 @@ int sc_main(int argc, char** argv)
   {
     if (ic) s.get_core(i)->get_mmu()->register_memtracer(&*ic);
     if (dc) s.get_core(i)->get_mmu()->register_memtracer(&*dc);
-    for (auto e : extensions)
-      s.get_core(i)->register_extension(e());
+    for (auto e : extensions){
+      s.get_core(i)->register_extension(e(), cosim);
+    }
   }
 
   s.set_debug(debug);

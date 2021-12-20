@@ -356,6 +356,7 @@ public:
 
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
+  void register_extension(extension_t*, bool is_cosim_enabled);
 
   // MMIO slave interface
   bool load(reg_t addr, size_t len, uint8_t* bytes);
@@ -390,6 +391,10 @@ public:
   void set_cosim_insn(const char* cosim_insn);
   // get cosim log file
   FILE *get_cosim_log_file() { return cosim_log_file; }
+  // add cosim_fence
+  void add_cosim_fence(cosim_fence_t* cosim_fence);
+  // find insn in cosim_fence list
+  cosim_fence_t* find_insn_in_cosim_fence_table(insn_t insn);
 
   // Return the index of a trigger that matched, or -1.
   inline int trigger_match(trigger_operation_t operation, reg_t address, reg_t data)

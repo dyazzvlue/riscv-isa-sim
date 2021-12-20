@@ -21,3 +21,11 @@ void extension_t::raise_interrupt()
 void extension_t::clear_interrupt()
 {
 }
+
+void extension_t::set_cosim_enabled(){
+    this->cosim_enabled = true;
+}
+
+bool extension_t::is_cosim_enabled(){
+    return this->cosim_enabled;
+}

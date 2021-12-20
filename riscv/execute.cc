@@ -199,6 +199,10 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch,
 
       }
     npc = fetch.func(p, fetch.insn, pc);
+    if (npc==pc){
+        std::cout << "pc don't update" <<std::endl;
+        throw cosim_fence_t(fetch.insn);
+    }
     if (npc != PC_SERIALIZE_BEFORE) {
 
 #ifdef RISCV_ENABLE_COMMITLOG
@@ -421,12 +425,24 @@ void processor_t::step(size_t n)
         fprintf(this->cosim_log_file, "proc%4" PRId32 ": ",
             this->get_id());
         fprintf(this->cosim_log_file, " catch cosim_fence\n");
-        // create a spike event
-        spike_event_t* event = createRoccInstEvent(instret, instret, t.get_cosim_insn());
-        t.set_spike_event(event);
-        this->cosim_fence_table.push_back(&t);
+        std::cout << "catch cosim fence" << std::endl;
+        /* check whether a new spike event needs to be generated
+         *  
+         */
+        cosim_fence_t* exist_fence = static_cast<cosim_fence_t*>
+            (this->find_insn_in_cosim_fence_table(t.get_cosim_insn()));
+        if (exist_fence == NULL){
+            //create a new fence
+            std::cout << " create a new new cosimfence" << std::endl;
+            spike_event_t* event = createRoccInstEvent(instret, instret, t.get_cosim_insn());
+            t.set_spike_event(event);
+            this->add_cosim_fence(&t);
+        }else{
+            std::cout << "no need to create  a cosim fence" << std::endl;
+            // do nothing
+        }
+
         n = ++instret;
-        //std::cout << "instret: " << instret << std::endl;
     }
     state.minstret->bump(instret);
     this->inst_count += instret;
@@ -459,8 +475,6 @@ reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t *steps){
            fprintf(cosim_log_file, "proc%4" PRId32 ": ", this->get_id());
            fprintf(cosim_log_file, " pending fence finished\n");
            // pc run a instruction and release the cosim_fence
-           this->cosim_fence_table.pop_front();
-           //reg_t pc = state.pc;
            for (auto ic_entry = _mmu->access_icache(pc); ; ){
                insn_fetch_t fetch = ic_entry->data;
                //insn_fetch_t fetch = mmu->load_insn(pc);
@@ -487,6 +501,7 @@ reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t *steps){
                this->state.pc = pc;
                step++;
            }
+           this->cosim_fence_table.pop_front();
            // update the steps, let processor know how many step spent
            *steps = step;
        }else{
@@ -526,4 +541,23 @@ void processor_t::enable_cosim(bool enable_cosim, FILE* cosim_log){
 // TODO change to a vector to save the cosim instructions
 void processor_t::set_cosim_insn(const char* cosim_insn){
     this->cosim_insn = cosim_insn;
+}
+
+void processor_t::add_cosim_fence(cosim_fence_t* cosim_fence){
+    std::cout << "processor add cosim fence " << cosim_fence->get_cosim_insn().bits() << std::endl;
+    this->cosim_fence_table.push_back(cosim_fence);
+}
+
+cosim_fence_t* processor_t::find_insn_in_cosim_fence_table(insn_t insn){
+    std::deque<cosim_fence_t*>::iterator it;
+    for (it=this->cosim_fence_table.begin();
+           it!=this->cosim_fence_table.end();
+           ++it){
+        if ((*it)->get_cosim_insn().bits() == insn.bits()){
+            // find target insn, return the fence
+            // std::cout << "find target insn " << insn.bits() << std::endl;
+            return (*it);
+        }
+    }
+    return NULL;
 }

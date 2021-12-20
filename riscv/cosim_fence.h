@@ -16,6 +16,7 @@ class cosim_fence_t{
 public:
     //cosim_fence_t(reg_t which)
     //    : which(which){}
+    cosim_fence_t() {};
     cosim_fence_t(insn_t insn)
         : insn(insn){};
     const char* name();

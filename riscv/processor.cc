@@ -1063,20 +1063,27 @@ void processor_t::build_opcode_map()
 
 void processor_t::register_extension(extension_t* x)
 {
-  for (auto insn : x->get_instructions())
-    register_insn(insn);
+    for (auto insn : x->get_instructions()){
+        register_insn(insn);
+    }
+    std::cout << x->is_cosim_enabled() <<std::endl;
   build_opcode_map();
 
   if (disassembler)
-    for (auto disasm_insn : x->get_disasms())
-      disassembler->add_insn(disasm_insn);
+      for (auto disasm_insn : x->get_disasms()){
+        disassembler->add_insn(disasm_insn);
+      }
 
   if (!custom_extensions.insert(std::make_pair(x->name(), x)).second) {
     fprintf(stderr, "extensions must have unique names (got two named \"%s\"!)\n", x->name());
     abort();
   }
-
   x->set_processor(this);
+}
+
+void processor_t::register_extension(extension_t* x, bool is_cosim_enabled){
+    x->set_cosim_enabled();
+    this->register_extension(x);
 }
 
 void processor_t::register_base_instructions()
