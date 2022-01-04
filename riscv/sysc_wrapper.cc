@@ -9,6 +9,8 @@ sysc_wrapper_t::sysc_wrapper_t(
         ):
     sc_module( _name ){
         // initializations
+        send_sock.bind(*this);
+        recv_sock.bind(*this);
         SC_THREAD(run);
         SC_METHOD(event_notified);
         sensitive << event;
@@ -55,14 +57,57 @@ void sysc_wrapper_t::run(){
 }
 
 void sysc_wrapper_t::send_rocc_rqst(spike_event_t* event){
-    // TODO
+    // send cosim cmd by tlm socket
     sysc_log(this->log_file, this->name() , " send rocc rqst ");
 //    event->show();
     sysc_log(this->log_file, this->name() , event->info());
-    // update the event status to finish 
-    event->finish();
-    wait(SC_ZERO_TIME);
 
+    // send tlm payload to sock TODO
+    auto trans = trans_allocator.allocate();
+    // trans_->acquire();
+    tlm::tlm_command cmd = tlm::TLM_IGNORE_COMMAND;
+    trans->set_command(cmd);
+    trans->set_address(COSIM_START_ADDR); // TODO: is necessary ?
+    auto req = trans->get_data_ptr();
+    req->insn = event->get_cosim_insn();
+    sc_time delay = SC_ZERO_TIME;
+    trans->set_data_ptr((unsigned char*)req);
+    trans->set_data_length(sizeof(cosim_cmd));
+    trans->set_response_status(tlm::TLM_OK_RESPONSE);
+    this->send_sock->b_transport(*trans, delay);
+    // update the event status to finish TODO: move to recv_rocc_rsp
+//    event->finish();
+//    std::cout << "close the event " << std::endl;
+
+}
+
+void sysc_wrapper_t::b_transport(tlm_generic_payload& trans, sc_time& t) {
+    // recv result from binded sc_module
+    auto recv_trans = (cosim_resp*)trans.get_data_ptr();
+    sysc_log(this->log_file, this->name(), " recv cosim response");
+    // update the related spike event status
+    insn_t insn = recv_trans->insn;
+    // find spike event by insn
+    spike_event_t* event = this->find_spike_evnet_by_insn(insn);
+    if (event == NULL){
+        std::cerr << "invalid response insn " << std::endl;
+    }else{
+        event->finish();
+        std::cout << "close the event " << std::endl;
+    }
+
+}
+
+spike_event_t* sysc_wrapper_t::find_spike_event_by_insn(insn_t insn){
+    std::list<spike_event_t*>::iterator it;
+    for (it=this->waiting_event_list.begin();
+            it!=this->waiting_event_list.end();
+            ++it){
+        if ((*it)->get_cosim_insn().bits() == insn.bits()){
+            return (*it);
+        }
+    }
+    return NULL;
 }
 
 void sysc_wrapper_t::event_notified(){

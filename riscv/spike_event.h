@@ -4,11 +4,31 @@
 #include <stdlib.h>
 #include <iostream>
 #include "decode.h"
+#include "asyncEvent.h"
+#include "asyncEvent.h"
+#include "asyncEvent.h"
+#include "asyncEvent.h"
+#include "asyncEvent.h"
+#include "asyncEvent.h"
 #include <sstream>
 #include <string>
 
+// cosim cmd TODO: move to a spilted file
+struct cosim_cmd {
+    insn_t insn;
+    reg_t rs1;
+    reg_t rs2;
+};
+
+// cosim resp TODO: move to a spilted file
+struct cosim_resp {
+    insn_t insn;
+    uint32_t rd;
+    reg_t data;
+};
 namespace sc_cosim{
 using namespace std;
+
 
 typedef enum {
     sync_time,
