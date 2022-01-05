@@ -4,14 +4,13 @@
 #include <stdlib.h>
 #include <iostream>
 #include "decode.h"
-#include "asyncEvent.h"
-#include "asyncEvent.h"
-#include "asyncEvent.h"
-#include "asyncEvent.h"
-#include "asyncEvent.h"
-#include "asyncEvent.h"
+#include "async_event.h"
 #include <sstream>
 #include <string>
+
+// TODO
+#define COSIM_START_ADDR 0x10000000
+#define COSIM_END_ADDR 0x1000ffff
 
 // cosim cmd TODO: move to a spilted file
 struct cosim_cmd {
@@ -28,7 +27,6 @@ struct cosim_resp {
 };
 namespace sc_cosim{
 using namespace std;
-
 
 typedef enum {
     sync_time,
@@ -71,9 +69,10 @@ inline spike_event_t* createRoccInstEvent(uint64_t start_time, uint64_t steps,
     return event;
 }
 
-inline spike_event_t* createRoccInsnEvent() {
+inline spike_event_t* createRoccInsnEvent(insn_t insn) {
     spike_event_t* event = new spike_event_t(spike_event_type::rocc_inst,
             0,0);
+    event->set_cosim_insn(insn);
     std::cout << "create a dummy rocc insn event" << std::endl;
     return event;
 }
