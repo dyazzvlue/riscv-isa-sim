@@ -5,6 +5,7 @@
 #include "remote_bitbang.h"
 #include "cachesim.h"
 #include "extension.h"
+#include "cosim_model.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
 #include <stdio.h>
@@ -76,6 +77,8 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --cosim               Cosimulation with systemC\n");
   fprintf(stderr, "  --cosim-log=<path>    File name for cosimulation log\n");
   fprintf(stderr, "  --cosim-insn=<name>   Name of instruction which shoule executed in another simulation\n");
+  fprintf(stderr, "  --cosim-models=<name>    Specify cosim models\n");
+  fprintf(stderr, "                          This flag can be used multiple times.\n");
   exit(exit_code);
 }
 
@@ -237,6 +240,7 @@ int sc_main(int argc, char** argv)
   bool log_commits = false;
   const char *log_path = nullptr;
   std::vector<std::function<extension_t*()>> extensions;
+  std::vector<std::function<cosim_model_t*()>> cosim_models;
   const char* initrd = NULL;
   const char* isa = DEFAULT_ISA;
   const char* priv = DEFAULT_PRIV;
@@ -388,6 +392,7 @@ int sc_main(int argc, char** argv)
                 [&](const char* s){cosim = true; cosim_log = s;});
   parser.option(0, "cosim-insn", 1,
                 [&](const char* s){cosim = true; cosim_insn = s;});
+  parser.option(0, "cosim-models", 1, [&](const char* s){cosim_models.push_back(find_cosim_model(s));});
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -487,6 +492,12 @@ int sc_main(int argc, char** argv)
   auto return_code = 1;
   if (cosim == true ){
       s.configure_cosim(cosim, cosim_log, cosim_insn);
+      // register cosim models
+      for (auto model : cosim_models){
+        s.get_sc_controller()->config_cosim_model(model());
+        // TODO not a good way
+        model()->set_processor(s.get_core(0));
+      }
       s.cosim_run();
       sc_start(100,SC_SEC);
   }else {

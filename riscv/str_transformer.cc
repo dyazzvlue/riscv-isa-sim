@@ -201,15 +201,16 @@ void str_transformer_rocc_t::transform(int buffer_index){
 
         }
         phases[buffer_index] = TransPhase::IDLE;
-		if (!is_busy()) {
+    		if (!is_busy()) {
 		//	core.io_fence_done();
             // do nothing
 		}
 
     }
 }
-
+/*
  reg_t str_transformer_rocc_t::custom0(rocc_insn_t insn, reg_t xs1, reg_t xs2){
      // do nothing , actual execution is in run method
      return 0;
  }
+ */

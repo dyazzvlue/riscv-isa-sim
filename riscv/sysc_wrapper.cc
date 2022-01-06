@@ -62,7 +62,7 @@ void sysc_wrapper_t::send_rocc_rqst(spike_event_t* event){
 //    event->show();
     sysc_log(this->log_file, this->name() , event->info());
 
-    // send tlm payload to sock TODO
+    // send tlm payload to sock 
     auto trans = trans_allocator.allocate();
     // trans_->acquire();
     tlm::tlm_command cmd = tlm::TLM_IGNORE_COMMAND;
@@ -74,10 +74,7 @@ void sysc_wrapper_t::send_rocc_rqst(spike_event_t* event){
     trans->set_data_ptr((unsigned char*)req);
     trans->set_data_length(sizeof(cosim_cmd));
     trans->set_response_status(tlm::TLM_OK_RESPONSE);
-    this->send_sock->b_transport(*trans, delay);
-    // update the event status to finish TODO: move to recv_rocc_rsp
-//    event->finish();
-//    std::cout << "close the event " << std::endl;
+    this->send_sock->b_transport(*trans, delay);  // send to target sc_module
 
 }
 
@@ -133,6 +130,12 @@ bool sysc_wrapper_t::is_sync_complete(){
 
 void sysc_wrapper_t::set_log_file(FILE* file){
     this->log_file = file;
+}
+
+void sysc_wrapper_t::config_cosim_model(cosim_model_t* model){
+    // combine the sockets TODO: support vector/array sockets
+    this->send_sock.bind(model->get_recv_port());
+    model->get_send_port.bind(this->recv_sock);
 }
 
 void* sysc_controller_t::sysc_control(void *arg){
@@ -215,6 +218,10 @@ spike_event_t* sysc_controller_t::get_first_spike_event(){
 void sysc_controller_t::set_log_file(FILE* file){
     this->log_file = file;
     this->sysc_wrapper.set_log_file(file);
+}
+
+void sysc_controller_t::config_cosim_model(cosim_model_t* model){
+    this->sysc_wrapper.config_cosim_model(model);
 }
 
 }

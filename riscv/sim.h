@@ -75,6 +75,7 @@ public:
   void configure_cosim(bool enable_cosim,
           const char* cosim_log = "cosim_trace.log",
           const char* cosim_insn = "fence");
+  sc_cosim::sysc_controller_t* get_sc_controller() {return this->sc_controller;}
 
   void set_procs_debug(bool value);
   void set_remote_bitbang(remote_bitbang_t* remote_bitbang) {

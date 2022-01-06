@@ -18,27 +18,29 @@
 #include "spike_event.h"
 #include "mmu.h"
 #include "rocc.h"
-#include "riscv/mmio_plugin.h"
+//#include "riscv/mmio_plugin.h"
+#include "cosim_model.h"
 
 /*
     This is a sc_module which simulate a simple rocc core. 
     Spike should load this module with custom-ext like dummy rocc.
 */
-class str_transformer_rocc_t : public sc_module, public tlm_bw_transport_if<>,
-    public tlm_fw_transport_if<> , public rocc_t{
+//class str_transformer_rocc_t : public sc_module, public tlm_bw_transport_if<>,
+//    public tlm_fw_transport_if<> {
+class str_transformer_rocc_t : public cosim_model_t{
 public:
-    const char* name() { return "str_transformer_rocc"; }
-    reg_t custom0(rocc_insn_t insn, reg_t xs1, reg_t xs2);
+    //const char* name() { return "str_transformer_rocc"; }
+    //reg_t custom0(rocc_insn_t insn, reg_t xs1, reg_t xs2);
     SC_HAS_PROCESS(str_transformer_rocc_t);
     str_transformer_rocc_t(
         sc_core::sc_modele_name _name
         );
-    virtual ~sysc_wrapper_t() {};
+    virtual ~str_transformer_rocc_t() {};
     tlm_utils::peq_with_get<tlm::tlm_generic_payload> peq;
     tlm_utils::tlm_quantumkeeper quantum_keeper;
     TransAllocator<Transaction<cosim_resp> trans_allocator;
-    tlm_initiator_socket<> send_sock{"send_sock"};
-    tlm_target_socket<> recv_sock{"recv_sock"};
+    //tlm_initiator_socket<> send_sock{"send_sock"};
+    //tlm_target_socket<> recv_sock{"recv_sock"};
 
     void b_transport(tlm_generic_payload& trans, sc_time& t) override;
     tlm_sync_enum nb_transport_fw(tlm_generic_payload& trans, tlm_phase& phase,
@@ -48,7 +50,6 @@ public:
     }
     void run();
     void transform();
-    void set_processor(processor_t* _p) { p = _p; }
     bool is_busy();
     void transport_recv(tlm_generic_payload& trans, sc_time& t);
     void send_resp(rocc_insn_union_t* rocc_insn_union, uint32_t rd, reg_t data);
@@ -85,7 +86,7 @@ protected:
 
 const sc_core::sc_time str_transformer_rocc_t::contr_cycle(10, sc_core::SC_NS);
 // register this sc_module like custom-ext in Spike
-REGISTER_EXTENSION(str_trans_former_rocc, []() { return new str_transformer_rocc_t; })
+//REGISTER_EXTENSION(str_trans_former_rocc, []() { return new str_transformer_rocc_t; })
 
 /* not used
 struct rocc_mmio_plugin{

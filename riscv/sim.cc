@@ -116,6 +116,9 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   //systemc controller
   sc_controller = new sysc_controller_t("sysc_controller");
 
+  // init systemc module TODO
+  
+
   for (cpu_offset = fdt_get_first_subnode(fdt, cpu_offset); cpu_offset >= 0;
        cpu_offset = fdt_get_next_subnode(fdt, cpu_offset)) {
 

@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include "allocator.h"
 #include "decode.h"
+#include "cosim_model.h"
 
 namespace sc_cosim{
 
@@ -41,6 +42,7 @@ public:
     pthread_cond_t cond;
     void set_log_file(FILE* file);
     spike_event_t* find_spike_event_by_insn(insn_t insn);
+    void config_cosim_model(cosim_model_t* model);
 
     // TLM2 initiator
     tlm_initiator_socket<> send_sock{"send_sock"};
@@ -95,6 +97,7 @@ class sysc_controller_t{
         // return first event in spike sync request, TBD
         spike_event_t* get_first_spike_event();
         void set_log_file(FILE* file);
+        void config_cosim_model(cosim_model_t* model);
 
     private:
         pthread_t thread;
