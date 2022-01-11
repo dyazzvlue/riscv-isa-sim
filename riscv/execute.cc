@@ -183,9 +183,10 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch,
       if (p->get_cosim_enabled()){
         if (run_cosim_insn == true){
               std::string insn_str= p->get_insn_string(fetch.insn);
-              fprintf(p->get_cosim_log_file(), "proc%4" PRId32 ": ",
+              fprintf(p->get_cosim_log_file(), "proc%4" PRId32 ": run ",
                   p->get_id());
               fprintf(p->get_cosim_log_file(), insn_str.c_str());
+              fprintf(p->get_cosim_log_file(), "%d", fetch.insn.bits());
               fprintf(p->get_cosim_log_file(), "\n");
         }
         // if is cosim instrcution, throw
@@ -501,7 +502,12 @@ reg_t  processor_t::take_cosim_fence(mmu_t* _mmu, reg_t pc, size_t *steps){
                this->state.pc = pc;
                step++;
            }
-           this->cosim_fence_table.pop_front();
+           // release the spike event and cosim fence
+           delete first_event;
+           first_event = NULL;
+    //       delete cosim_fence;
+    //       cosim_fence = NULL;
+           this->cosim_fence_table.pop_front(); // remove the cosim fence in table
            // update the steps, let processor know how many step spent
            *steps = step;
        }else{

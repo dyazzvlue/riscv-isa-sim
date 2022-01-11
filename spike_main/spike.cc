@@ -493,12 +493,28 @@ int sc_main(int argc, char** argv)
   if (cosim == true ){
       s.configure_cosim(cosim, cosim_log, cosim_insn);
       // register cosim models
-      for (auto model : cosim_models){
-        s.get_sc_controller()->config_cosim_model(model());
+      if (cosim_models.empty()){
+          //dummy bind
+          auto sysc_wrapper = s.get_sc_controller()->get_sysc_wrapper();
+          sysc_wrapper->send_sock.bind(sysc_wrapper->recv_sock);
+      }else
+      {
+        for (auto model : cosim_models){
+          auto m = model();
+          std::cout << "try add " << m->cosim_model_name() << std::endl;
+          auto sysc_wrapper = s.get_sc_controller()->get_sysc_wrapper();
+          std::cout << "get sysc_wrapper " << sysc_wrapper->name() << std::endl;
+          sysc_wrapper->send_sock.bind(m->recv_sock);
+          m->send_sock.bind(sysc_wrapper->recv_sock);
+//        s.get_sc_controller()->config_cosim_model(model()); TODO check if possible
+          std::cout << "socket binded ! " << std::endl;
         // TODO not a good way
-        model()->set_processor(s.get_core(0));
+          m->set_processor(s.get_core(0));
+         }
+        std::cout << "register completed " << std::endl;
       }
       s.cosim_run();
+
       sc_start(100,SC_SEC);
   }else {
       return_code = s.run();

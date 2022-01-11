@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <iostream>
 #include "decode.h"
-#include "async_event.h"
 #include <sstream>
 #include <string>
 

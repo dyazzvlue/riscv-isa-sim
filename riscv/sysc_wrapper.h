@@ -42,6 +42,7 @@ public:
     pthread_cond_t cond;
     void set_log_file(FILE* file);
     spike_event_t* find_spike_event_by_insn(insn_t insn);
+    void release_wait_event(insn_t insn);
     void config_cosim_model(cosim_model_t* model);
 
     // TLM2 initiator
@@ -49,16 +50,23 @@ public:
     // TLM2 target
     tlm_target_socket<> recv_sock{"recv_sock"};
     // transaction allocator
-    TransAllocator<Transaction<cosim_cmd> trans_allocator;
+    TransAllocator<Transaction<cosim_cmd>> trans_allocator;
     // TLM2 blocking forward transport implementation
     void b_transport(tlm_generic_payload& trans, sc_time& t) override;
     // TLM2 non-blocking forward transport implementation
     tlm_sync_enum nb_transport_fw(tlm_generic_payload& trans, tlm_phase& phase,
-            sc_time& t) override;
+            sc_time& t) override{
+        return TLM_ACCEPTED;
+    }
     // TLM2 DMI implementation
-    bool get_direct_mem_ptr(tlm_generic_payload& trans, tlm_dmi& dmi_data) override{
+    bool get_direct_mem_ptr(tlm_generic_payload& trans,
+            tlm_dmi& dmi_data) override{
         return false;
     }
+    void invalidate_direct_mem_ptr(sc_dt::uint64 start_range,
+            sc_dt::uint64 end_range) override {}
+    unsigned int transport_dbg(tlm_generic_payload& trans) override {return 0;}
+
 
 private:
     // TODO running flags
@@ -98,6 +106,7 @@ class sysc_controller_t{
         spike_event_t* get_first_spike_event();
         void set_log_file(FILE* file);
         void config_cosim_model(cosim_model_t* model);
+        sysc_wrapper_t* get_sysc_wrapper(){return &(this->sysc_wrapper);}
 
     private:
         pthread_t thread;

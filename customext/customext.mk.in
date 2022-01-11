@@ -4,8 +4,15 @@ customext_subproject_deps = \
 	disasm \
 	softfloat \
 
+customext_hdrs = \
+	str_transformer.h \
+
 customext_srcs = \
 	dummy_rocc.cc \
 	cflush.cc \
+	str_transformer_rocc.cc \
+	str_transformer.cc \
+
+customext_CFLAGS = -fPIC
 
 customext_install_shared_lib = yes

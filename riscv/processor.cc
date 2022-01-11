@@ -1066,7 +1066,7 @@ void processor_t::register_extension(extension_t* x)
     for (auto insn : x->get_instructions()){
         register_insn(insn);
     }
-    std::cout << x->is_cosim_enabled() <<std::endl;
+    std::cout << "Processor cosim_enabled " << x->is_cosim_enabled() <<std::endl;
   build_opcode_map();
 
   if (disassembler)
@@ -1079,6 +1079,7 @@ void processor_t::register_extension(extension_t* x)
     abort();
   }
   x->set_processor(this);
+  std::cout << " processor register " <<  x->name() << " finish" <<std::endl;
 }
 
 void processor_t::register_extension(extension_t* x, bool is_cosim_enabled){

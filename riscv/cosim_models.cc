@@ -39,5 +39,5 @@ std::function<cosim_model_t*()> find_cosim_model(const char* name)
       exit(-1);
     }
   }
-
   return cosim_models()[name];
+}

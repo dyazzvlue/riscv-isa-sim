@@ -37,6 +37,7 @@ riscv_hdrs = \
 	async_event.h \
 	sysc_log.h \
 	cosim_fence.h \
+	cosim_model.h \
 
 riscv_install_hdrs = mmio_plugin.h
 
@@ -66,6 +67,8 @@ riscv_srcs = \
 	sysc_wrapper.cc \
 	spike_event.cc \
 	cosim_fence.cc \
+	cosim_model.cc \
+	cosim_models.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs =
