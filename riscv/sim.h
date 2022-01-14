@@ -26,6 +26,8 @@
 #include <memory>
 #include <sys/types.h>
 #include <pthread.h>
+#include <future>
+#include <thread>
 
 using namespace sc_cosim;
 
@@ -50,10 +52,7 @@ public:
         FILE *cmd_file); // needed for command line option --cmd
   ~sim_t();
 
-  void cosim_run();
-  void htif_run();
-  static void *run_htif_thread(void *arg);
-  static void *run_cosim_thread(void *arg);
+  int cosim_run();
 
   // run the simulation to completion
   int run();
@@ -87,6 +86,8 @@ public:
 
   // Callback for processors to let the simulation know they were reset.
   void proc_reset(unsigned id);
+
+  bool iscosim_done();
 
 private:
   std::vector<std::pair<reg_t, mem_t*>> mems;

@@ -22,8 +22,11 @@ void sysc_wrapper_t::run(){
     // Main thread of systemc wrapper
     while(true){
         wait(event);
+        if (event.isClose()){
+            sysc_log(this->log_file,this->name(), "close systemc ");
+            sc_stop();
+        }
         if (event.get_spike_list().empty()){
-            //sysc_log('=',this->name(), "spike list is empty");
             sysc_log(this->log_file,this->name(), "spike list is empty");
             isSyncCompleted = true;
             continue;
@@ -136,6 +139,11 @@ void sysc_wrapper_t::notify(std::list<spike_event_t*> events){
     event.recv_spike_event(tmp);
 }
 
+void sysc_wrapper_t::notify(bool isClose){
+    isSyncCompleted=false;
+    event.close(isClose);
+}
+
 bool sysc_wrapper_t::is_sync_complete(){
     return this->isSyncCompleted;
 }
@@ -153,7 +161,7 @@ void sysc_wrapper_t::config_cosim_model(cosim_model_t* model){
 
 void* sysc_controller_t::sysc_control(void *arg){
     sysc_controller_t *thiz = static_cast<sysc_controller_t *> (arg);
-    while (true){
+      while (!thiz->is_cosim_stop){
         log(thiz->log_file, "sysc_controller", "waiting");
         pthread_mutex_lock(&thiz->mtx);
         while(thiz->is_notified == false){
@@ -179,6 +187,7 @@ void* sysc_controller_t::sysc_control(void *arg){
         pthread_mutex_unlock(&thiz->mtx); 
 
     }
+    pthread_exit(NULL);
 }
 
 bool sysc_controller_t::notify_systemc(){
@@ -203,6 +212,11 @@ bool sysc_controller_t::notify_systemc(){
 void sysc_controller_t::run(){
     pthread_create(&thread, NULL, sysc_controller_t::sysc_control, this);
     pthread_detach(thread);
+}
+
+void sysc_controller_t::stop(){
+    this->is_cosim_stop = true;
+    this->sysc_wrapper.notify(true);
 }
 
 void sysc_controller_t::add_spike_events(spike_event_t* i){

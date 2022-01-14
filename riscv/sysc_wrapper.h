@@ -36,6 +36,7 @@ public:
     void event_notified();
     void notify(uint64_t step);
     void notify(std::list<spike_event_t*> events);
+    void notify(bool isClose);
     void send_rocc_rqst(spike_event_t* event); // send rocc rqst to systemc model
     bool is_sync_complete();
     pthread_mutex_t mtx;
@@ -100,6 +101,8 @@ class sysc_controller_t{
         bool notify_systemc();
         // create thread and waiting notify
         void run();
+        // stop systemc thread
+        void stop();
         // add events from spike sync request, TBD
         void add_spike_events(spike_event_t* spike_event);
         // return first event in spike sync request, TBD
@@ -115,6 +118,7 @@ class sysc_controller_t{
         std::string name;
         bool is_notified = false;
         bool is_sc_completed = false;
+        bool is_cosim_stop = false;
         sysc_wrapper_t sysc_wrapper;
         // deque of pending events from spike, TBD
         std::deque<spike_event_t*> spike_events;

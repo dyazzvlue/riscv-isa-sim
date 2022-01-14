@@ -503,28 +503,19 @@ int sc_main(int argc, char** argv)
           auto m = model();
           std::cout << "try add " << m->cosim_model_name() << std::endl;
           auto sysc_wrapper = s.get_sc_controller()->get_sysc_wrapper();
-          std::cout << "get sysc_wrapper " << sysc_wrapper->name() << std::endl;
           sysc_wrapper->send_sock.bind(m->recv_sock);
           m->send_sock.bind(sysc_wrapper->recv_sock);
 //        s.get_sc_controller()->config_cosim_model(model()); TODO check if possible
-          std::cout << "socket binded ! " << std::endl;
         // TODO not a good way
           m->set_processor(s.get_core(0));
          }
-        std::cout << "register completed " << std::endl;
       }
-      s.cosim_run();
+      // TODO, support set simulation time from cmd line
+      return_code = s.cosim_run(); // new way, with return code
 
-      sc_start(100,SC_SEC);
   }else {
       return_code = s.run();
   }
-
-  //auto return_code = s.run();
-  //start cosim
-//  s.cosim_run();
-//   sc_start(100,SC_SEC);
-
 
   for (auto& mem : mems)
     delete mem.second;
