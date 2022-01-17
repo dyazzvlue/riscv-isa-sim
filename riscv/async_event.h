@@ -51,6 +51,15 @@ public:
         return this->spike_event_list;
     }
 
+    void close(bool state){
+        this->is_close = state;
+        notify();
+    }
+
+    bool isClose(){
+        return this->is_close;
+    }
+
     const sc_event &default_event(void) const {
         return event;
     }
@@ -72,6 +81,7 @@ protected:
     sc_time delay;
     sc_time steps;
     std::list<spike_event_t*> spike_event_list;
+    bool is_close = false;
 
 };
 }

@@ -48,7 +48,7 @@ customX(3)
     if (cosim_fence == NULL) { \
        /* create a new cosim fence */ \
        std::cout << "[rocc.cc] create new rocc insn event " << std::endl; \
-       spike_event_t* event = sc_cosim::createRoccInsnEvent(); \
+       spike_event_t* event = sc_cosim::createRoccInsnEvent(insn); \
        cosim_fence = new cosim_fence_t(insn); \
        cosim_fence->set_spike_event(event); \
        p->add_cosim_fence(cosim_fence); \

@@ -1,6 +1,7 @@
 #ifndef _SYSC_WRAPPER_H
 #define _SYSC_WRAPPER_H
 #include<systemc.h>
+#include<tlm.h>
 #include<pthread.h>
 #include<string>
 #include"spike_event.h"
@@ -9,15 +10,21 @@
 #include <deque>
 #include <list>
 #include <unistd.h>
+#include "allocator.h"
+#include "decode.h"
+#include "cosim_model.h"
 
 namespace sc_cosim{
 
 class spike_event_t;
 using namespace std;
 using namespace sc_core;
+using namespace tlm;
 
-class sysc_wrapper_t : public sc_module {
+class sysc_wrapper_t : public sc_module, public tlm_bw_transport_if<>,
+   public tlm_fw_transport_if<> {
 public:
+
     SC_HAS_PROCESS(sysc_wrapper_t);
     sysc_wrapper_t(
             sc_core::sc_module_name _name
@@ -29,11 +36,38 @@ public:
     void event_notified();
     void notify(uint64_t step);
     void notify(std::list<spike_event_t*> events);
+    void notify(bool isClose);
     void send_rocc_rqst(spike_event_t* event); // send rocc rqst to systemc model
     bool is_sync_complete();
     pthread_mutex_t mtx;
     pthread_cond_t cond;
     void set_log_file(FILE* file);
+    spike_event_t* find_spike_event_by_insn(insn_t insn);
+    void release_wait_event(insn_t insn);
+    void config_cosim_model(cosim_model_t* model);
+
+    // TLM2 initiator
+    tlm_initiator_socket<> send_sock{"send_sock"};
+    // TLM2 target
+    tlm_target_socket<> recv_sock{"recv_sock"};
+    // transaction allocator
+    TransAllocator<Transaction<cosim_cmd>> trans_allocator;
+    // TLM2 blocking forward transport implementation
+    void b_transport(tlm_generic_payload& trans, sc_time& t) override;
+    // TLM2 non-blocking forward transport implementation
+    tlm_sync_enum nb_transport_fw(tlm_generic_payload& trans, tlm_phase& phase,
+            sc_time& t) override{
+        return TLM_ACCEPTED;
+    }
+    // TLM2 DMI implementation
+    bool get_direct_mem_ptr(tlm_generic_payload& trans,
+            tlm_dmi& dmi_data) override{
+        return false;
+    }
+    void invalidate_direct_mem_ptr(sc_dt::uint64 start_range,
+            sc_dt::uint64 end_range) override {}
+    unsigned int transport_dbg(tlm_generic_payload& trans) override {return 0;}
+
 
 private:
     // TODO running flags
@@ -43,6 +77,13 @@ private:
     bool isSyncCompleted=false;
     std::list<spike_event_t*> waiting_event_list;
     FILE* log_file;
+
+    //TLM backward  transport implementation
+    tlm_sync_enum nb_transport_bw(tlm_generic_payload& trans, tlm_phase& phase,
+            sc_time& t) override
+    {
+        return TLM_ACCEPTED;
+    }
 };
 
 class sysc_controller_t{
@@ -60,11 +101,15 @@ class sysc_controller_t{
         bool notify_systemc();
         // create thread and waiting notify
         void run();
+        // stop systemc thread
+        void stop();
         // add events from spike sync request, TBD
         void add_spike_events(spike_event_t* spike_event);
         // return first event in spike sync request, TBD
         spike_event_t* get_first_spike_event();
         void set_log_file(FILE* file);
+        void config_cosim_model(cosim_model_t* model);
+        sysc_wrapper_t* get_sysc_wrapper(){return &(this->sysc_wrapper);}
 
     private:
         pthread_t thread;
@@ -73,6 +118,7 @@ class sysc_controller_t{
         std::string name;
         bool is_notified = false;
         bool is_sc_completed = false;
+        bool is_cosim_stop = false;
         sysc_wrapper_t sysc_wrapper;
         // deque of pending events from spike, TBD
         std::deque<spike_event_t*> spike_events;

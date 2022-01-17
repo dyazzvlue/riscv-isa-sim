@@ -9,6 +9,8 @@ sysc_wrapper_t::sysc_wrapper_t(
         ):
     sc_module( _name ){
         // initializations
+        send_sock.bind(*this);
+        recv_sock.bind(*this);
         SC_THREAD(run);
         SC_METHOD(event_notified);
         sensitive << event;
@@ -20,8 +22,11 @@ void sysc_wrapper_t::run(){
     // Main thread of systemc wrapper
     while(true){
         wait(event);
+        if (event.isClose()){
+            sysc_log(this->log_file,this->name(), "close systemc ");
+            sc_stop();
+        }
         if (event.get_spike_list().empty()){
-            //sysc_log('=',this->name(), "spike list is empty");
             sysc_log(this->log_file,this->name(), "spike list is empty");
             isSyncCompleted = true;
             continue;
@@ -47,7 +52,6 @@ void sysc_wrapper_t::run(){
                 tmp->finish();
                 sysc_log(this->log_file,this->name(),"sync time complete");
             }
-          //  it++;
         }
         sysc_log(this->log_file ,this->name(), " wrapper run complete ");
         isSyncCompleted = true;
@@ -55,14 +59,67 @@ void sysc_wrapper_t::run(){
 }
 
 void sysc_wrapper_t::send_rocc_rqst(spike_event_t* event){
-    // TODO
+    // send cosim cmd by tlm socket
     sysc_log(this->log_file, this->name() , " send rocc rqst ");
-//    event->show();
     sysc_log(this->log_file, this->name() , event->info());
-    // update the event status to finish 
-    event->finish();
-    wait(SC_ZERO_TIME);
 
+    // send tlm payload to sock 
+    auto trans = trans_allocator.allocate();
+    tlm::tlm_command cmd = tlm::TLM_IGNORE_COMMAND;
+    trans->set_command(cmd);
+    trans->set_address(COSIM_START_ADDR); // TODO: is necessary ?
+    auto req = trans->get_data_ptr();
+    req->insn = event->get_cosim_insn();
+    sc_time delay = SC_ZERO_TIME;
+    trans->set_data_ptr((unsigned char*)req);
+    trans->set_data_length(sizeof(cosim_cmd));
+    trans->set_response_status(tlm::TLM_OK_RESPONSE);
+    this->send_sock->b_transport(*trans, delay);  // send to target sc_module
+
+}
+
+void sysc_wrapper_t::b_transport(tlm_generic_payload& trans, sc_time& t) {
+    // recv result from binded sc_module
+    auto recv_trans = (cosim_resp*)trans.get_data_ptr();
+    sysc_log(this->log_file, this->name(), " recv cosim response");
+    // update the related spike event status
+    insn_t insn = recv_trans->insn;
+    // find spike event by insn
+    spike_event_t* event = this->find_spike_event_by_insn(insn);
+    if (event == NULL){
+        std::cerr << "invalid response insn " << std::endl;
+    }else{
+        event->finish();
+        this->release_wait_event(insn);
+        std::cout << sc_time_stamp() << " [sysc_wrapper] close the event " <<
+            insn.bits() << std::endl;
+    }
+
+}
+
+spike_event_t* sysc_wrapper_t::find_spike_event_by_insn(insn_t insn){
+    std::list<spike_event_t*>::iterator it;
+    for (it=this->waiting_event_list.begin();
+            it!=this->waiting_event_list.end();
+            ++it){
+        if ((*it)->get_cosim_insn().bits() == insn.bits()){
+            return (*it);
+        }
+    }
+    return NULL;
+}
+
+// TODO insn may be same, change to evnet ID is better?
+void sysc_wrapper_t::release_wait_event(insn_t insn) {
+    std::list<spike_event_t*>::iterator it;
+    for (it=this->waiting_event_list.begin();
+            it!=this->waiting_event_list.end();
+            ++it){
+        if ((*it)->get_cosim_insn().bits() == insn.bits()){
+             this->waiting_event_list.erase(it);
+             break;
+        }
+    }
 }
 
 void sysc_wrapper_t::event_notified(){
@@ -82,6 +139,11 @@ void sysc_wrapper_t::notify(std::list<spike_event_t*> events){
     event.recv_spike_event(tmp);
 }
 
+void sysc_wrapper_t::notify(bool isClose){
+    isSyncCompleted=false;
+    event.close(isClose);
+}
+
 bool sysc_wrapper_t::is_sync_complete(){
     return this->isSyncCompleted;
 }
@@ -90,16 +152,21 @@ void sysc_wrapper_t::set_log_file(FILE* file){
     this->log_file = file;
 }
 
+// TODO Not used, check if is possible
+void sysc_wrapper_t::config_cosim_model(cosim_model_t* model){
+    // combine the sockets TODO: support vector/array sockets
+    this->send_sock.bind(model->recv_sock);
+    model->send_sock.bind(this->recv_sock);
+}
+
 void* sysc_controller_t::sysc_control(void *arg){
     sysc_controller_t *thiz = static_cast<sysc_controller_t *> (arg);
-    while (true){
-        //std::cout << "sysc_controller waiting " << std::endl;
+      while (!thiz->is_cosim_stop){
         log(thiz->log_file, "sysc_controller", "waiting");
         pthread_mutex_lock(&thiz->mtx);
         while(thiz->is_notified == false){
             pthread_cond_wait(&thiz->cond, &thiz->mtx);
         }
-        //std::cout << "sysc_controller notify wrapper " << std::endl;
         log(thiz->log_file, "sysc_controller", "notify sysc_wrapper");
         // run rocc event until meet sync time event
         std::list<spike_event_t*> spike_event_list;
@@ -110,19 +177,17 @@ void* sysc_controller_t::sysc_control(void *arg){
             first_spike_event = thiz->get_first_spike_event();
         }
         spike_event_list.push_back(first_spike_event);
-        // std::cout << "Add " << spike_event_list.size() << " events to list" << std::endl;
         thiz->sysc_wrapper.notify(spike_event_list);
         // notify sysc_wrapper
-//        thiz->sysc_wrapper.notify(thiz->get_first_spike_event()->get_steps());
         while(thiz->sysc_wrapper.is_sync_complete()==false){
             // waiting sc_complete
         }
-        // std::cout << "wrapper complete" << std::endl;
         thiz->is_notified=false;
         thiz->is_sc_completed=true;
         pthread_mutex_unlock(&thiz->mtx); 
 
     }
+    pthread_exit(NULL);
 }
 
 bool sysc_controller_t::notify_systemc(){
@@ -132,12 +197,10 @@ bool sysc_controller_t::notify_systemc(){
         log(this->log_file, "controller", "spike event is empty");
         return true;
     }
-//    std::cout << "Try notify " << std::endl;
     pthread_mutex_lock(&this->mtx);
     this->is_notified = true;
     this->is_sc_completed = false;
     pthread_mutex_unlock(&this->mtx);
-//    std::cout << "cond signal " << std::endl;
     pthread_cond_signal(&this->cond);
     // wait sc finish
     while (this->is_sc_completed==false){
@@ -151,17 +214,18 @@ void sysc_controller_t::run(){
     pthread_detach(thread);
 }
 
+void sysc_controller_t::stop(){
+    this->is_cosim_stop = true;
+    this->sysc_wrapper.notify(true);
+}
+
 void sysc_controller_t::add_spike_events(spike_event_t* i){
-    //std::cout << "add spike event ";
-    //i->show();
     log(this->log_file, "add spike event", i->info());
     this->spike_events.push_back(i);
 }
 
 spike_event_t* sysc_controller_t::get_first_spike_event(){
     spike_event_t* event = this->spike_events.front();
-    //std::cout << " current spike event ";
-    //event->show();
     log(this->log_file, "current spike event", event->info());
     this->spike_events.pop_front();
     return event;
@@ -172,4 +236,7 @@ void sysc_controller_t::set_log_file(FILE* file){
     this->sysc_wrapper.set_log_file(file);
 }
 
+void sysc_controller_t::config_cosim_model(cosim_model_t* model){
+    this->sysc_wrapper.config_cosim_model(model);
+}
 }

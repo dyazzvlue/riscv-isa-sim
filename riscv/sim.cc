@@ -196,16 +196,17 @@ void sim_t::main()
   }
 }
 
-void * sim_t::run_cosim_thread(void *arg){
-    sim_t *thiz = static_cast<sim_t *> (arg);
-    thiz->run();
-}
-
-void sim_t::cosim_run(){
-  fprintf(cosim_log_file,"----- sim_t cosim_run()-----\n");
-  pthread_create(&cosim_thread, NULL, sim_t::run_cosim_thread, this);
-  pthread_detach(cosim_thread);
-  //TODO kill the thread when htfi_t::run() completed
+int sim_t::cosim_run(){
+    fprintf(cosim_log_file,"----- sim_t cosim_run()-----\n");
+    int exit_code = 0;
+    auto result = std::async(std::launch::async, std::bind(&sim_t::run, this));
+    // TODO
+    sc_start(1000,SC_SEC);
+    if (result.valid()){
+        exit_code = result.get();
+        std::cout << "------------ sc_stop at " << sc_time_stamp() << std::endl;
+    }
+    return exit_code;
 }
 
 int sim_t::run()
@@ -216,7 +217,12 @@ int sim_t::run()
     sc_controller->run();
     sc_controller->set_log_file(this->cosim_log_file);
   }
-  return htif_t::run();
+  int exit_code = htif_t::run();
+  std::cout << "htif run completed" << std::endl;
+  if (cosim_enabled){
+      sc_controller->stop();
+  }
+  return exit_code;
 }
 
 void sim_t::step(size_t n)
