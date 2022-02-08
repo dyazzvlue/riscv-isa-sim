@@ -251,6 +251,9 @@ bool processor_t::is_fence(insn_t insn){
 }
 
 bool processor_t::is_cosim_insn(insn_t insn){
+    if (this->cosim_insn == nullptr){
+        return false;
+    }
     std::string insn_str = this->get_insn_string(insn);
     if (insn_str.find(this->cosim_insn)!=std::string::npos){
         fprintf(this->cosim_log_file, "catch cosim insn: ");

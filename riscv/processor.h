@@ -512,7 +512,7 @@ private:
   std::deque<cosim_fence_t*> cosim_fence_table;
   // cosim instruction, which will be catched in simulation.
   // If catched , a cosim_event will be added
-  const char* cosim_insn;
+  const char* cosim_insn = nullptr;
 
   std::vector<insn_desc_t> instructions;
   std::map<reg_t,uint64_t> pc_histogram;

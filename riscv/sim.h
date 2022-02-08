@@ -107,7 +107,7 @@ private:
   bus_t bus;
   log_file_t log_file;
   FILE *cosim_log_file;
-  bool cosim_enabled;
+  bool cosim_enabled = false;
 
   FILE *cmd_file; // pointer to debug command input file
 

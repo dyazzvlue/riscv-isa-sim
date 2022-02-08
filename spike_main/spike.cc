@@ -392,7 +392,8 @@ int sc_main(int argc, char** argv)
                 [&](const char* s){cosim = true; cosim_log = s;});
   parser.option(0, "cosim-insn", 1,
                 [&](const char* s){cosim = true; cosim_insn = s;});
-  parser.option(0, "cosim-models", 1, [&](const char* s){cosim_models.push_back(find_cosim_model(s));});
+  parser.option(0, "cosim-models", 1, [&](const char* s){cosim = true;
+          cosim_models.push_back(find_cosim_model(s));});
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
